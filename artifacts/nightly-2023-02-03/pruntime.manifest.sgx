@@ -1,0 +1,217 @@
+[libos]
+entrypoint = "pruntime"
+
+[loader]
+entrypoint = "file:cruntime/libsysdb.so"
+log_level = "error"
+argv0_override = "pruntime"
+insecure__use_cmdline_argv = true
+
+[sys]
+insecure__allow_eventfd = true
+
+[fs]
+[[fs.mounts]]
+type = "chroot"
+path = "/lib"
+uri = "file:cruntime/lib/"
+
+[[fs.mounts]]
+path = "/data/protected_files"
+uri = "file:data/protected_files"
+type = "encrypted"
+key_name = "_sgx_mrenclave"
+
+[[fs.mounts]]
+type = "chroot"
+path = "/data/storage_files"
+uri = "file:data/storage_files"
+
+[[fs.mounts]]
+type = "chroot"
+path = "/etc"
+uri = "file:/etc"
+
+[sgx]
+debug = false
+nonpie_binary = true
+enclave_size = "2G"
+thread_num = 128
+remote_attestation = "epid"
+ra_client_linkable = true
+ra_client_spid = ""
+allowed_files = [ "file:/etc/hosts", "file:/etc/resolv.conf", "file:Rocket.toml", "file:data/storage_files/",]
+isvprodid = 0
+isvsvn = 0
+require_avx = false
+require_avx512 = false
+require_mpx = false
+require_pkru = false
+require_amx = false
+support_exinfo = false
+enable_stats = false
+[[sgx.trusted_files]]
+uri = "file:cruntime/libsysdb.so"
+sha256 = "49bba8cbb4b4765af2745755913ceda1c1e083a60e5d2c548ecb38f201b5311f"
+
+[[sgx.trusted_files]]
+uri = "file:pruntime"
+sha256 = "73188fb1da865047eac1af67614969a8b9a65195b2943b65ee7bad800243dea4"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/crt1.o"
+sha256 = "e73e02d0f565165dc3112a95573d901b09d09e997ca62684697dc0922d6bbdcf"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/crti.o"
+sha256 = "0c8ef9f9627f4c0d3cb52e9fc46662787141ae49a57a50e1a40c1b96af632996"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/crtn.o"
+sha256 = "df37c23206d280925216df48eb2d114b283fb28c116e952afe907250e0b89faa"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/ld-linux-x86-64.so.2"
+sha256 = "ec684f70c0170d02823a0b45d49b38078a475a164be13b3630c9a00927cf1855"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/ld.so"
+sha256 = "ec684f70c0170d02823a0b45d49b38078a475a164be13b3630c9a00927cf1855"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libanl.so"
+sha256 = "dd927b5ec89cb1dec96a20419e3f3a71959f3a8ea704ce40ab4074a326cdfe72"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libanl.so.1"
+sha256 = "dd927b5ec89cb1dec96a20419e3f3a71959f3a8ea704ce40ab4074a326cdfe72"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libc.so"
+sha256 = "fc5115ae7ffa1fad4ed726600637236fc47b13dbf141d123a1193fd2ddae32e1"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libc.so.6"
+sha256 = "fc5115ae7ffa1fad4ed726600637236fc47b13dbf141d123a1193fd2ddae32e1"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libdl.so"
+sha256 = "bafe785f1450523f7cdbeb3c2ad8dcbd40e80ac1527b53ddc7e0f694db7301b5"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libdl.so.2"
+sha256 = "bafe785f1450523f7cdbeb3c2ad8dcbd40e80ac1527b53ddc7e0f694db7301b5"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libgcc_s.so.1"
+sha256 = "d7e80cc8ff050f6942d3f42c3429b6fffb3115c5487af47849cf1c6b2d1deb64"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libm.so"
+sha256 = "ef108de042ff86ca63f596052b2f0a722587ec965065ff2fbe5f3c47723b3838"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libm.so.6"
+sha256 = "ef108de042ff86ca63f596052b2f0a722587ec965065ff2fbe5f3c47723b3838"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libmvec.so"
+sha256 = "9bd1c281475f8e5055d740fe3e4c78a616c29dd3015ce713d30a6ee6153161c4"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libmvec.so.1"
+sha256 = "9bd1c281475f8e5055d740fe3e4c78a616c29dd3015ce713d30a6ee6153161c4"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libnsl.so"
+sha256 = "f938b8b011bb29e6232e75a452ad2a46821fe8cfa1faa63c2dbf18d3f6e93b41"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libnsl.so.1"
+sha256 = "f938b8b011bb29e6232e75a452ad2a46821fe8cfa1faa63c2dbf18d3f6e93b41"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libnss_compat.so"
+sha256 = "6e2540c801f5c7909257a3adc48a58e7a656b2d697ed37d706e62768bb7e0c45"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libnss_compat.so.2"
+sha256 = "6e2540c801f5c7909257a3adc48a58e7a656b2d697ed37d706e62768bb7e0c45"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libnss_db.so"
+sha256 = "0481e71423579230fdedd9101962d301b6c8530655746eb5ec95d6d03ced2f27"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libnss_db.so.2"
+sha256 = "0481e71423579230fdedd9101962d301b6c8530655746eb5ec95d6d03ced2f27"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libnss_dns.so"
+sha256 = "43dbd24d81e2e9c98e0d349b7cfae08a224f903516cebd4caff186238e70546a"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libnss_dns.so.2"
+sha256 = "43dbd24d81e2e9c98e0d349b7cfae08a224f903516cebd4caff186238e70546a"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libnss_files.so"
+sha256 = "c07e9615169122875e8d1ce0832182ce141e19c18573745d5203a64afb34e637"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libnss_files.so.2"
+sha256 = "c07e9615169122875e8d1ce0832182ce141e19c18573745d5203a64afb34e637"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libpthread.so"
+sha256 = "239b9ae599e3dabeca5e289a898e9b7f2a57e3eb1368ce2715150b1e0ca97ca8"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libpthread.so.0"
+sha256 = "239b9ae599e3dabeca5e289a898e9b7f2a57e3eb1368ce2715150b1e0ca97ca8"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libresolv.so"
+sha256 = "d3f3ad73b8146ca3edd8b8d9fa788f2fa8c311ce0a69127f623889f8ddded5b9"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libresolv.so.2"
+sha256 = "d3f3ad73b8146ca3edd8b8d9fa788f2fa8c311ce0a69127f623889f8ddded5b9"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/librt.so"
+sha256 = "7f80d439cddfccb0f8865dfd4a8967e8375421d3e856dce8d82d59c80118db09"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/librt.so.1"
+sha256 = "7f80d439cddfccb0f8865dfd4a8967e8375421d3e856dce8d82d59c80118db09"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libthread_db.so"
+sha256 = "16bc79838a0f590153bb08dd1e86678ed61c7179cf9856de8eb6f8377c1aab95"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libthread_db.so.1"
+sha256 = "16bc79838a0f590153bb08dd1e86678ed61c7179cf9856de8eb6f8377c1aab95"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libutil.so"
+sha256 = "22bea9c8c89336d88cf86537ae5936df9356651ba659b99b6d4c78d4557b6ccd"
+
+[[sgx.trusted_files]]
+uri = "file:cruntime/lib/libutil.so.1"
+sha256 = "22bea9c8c89336d88cf86537ae5936df9356651ba659b99b6d4c78d4557b6ccd"
+
+[loader.env]
+LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
+MALLOC_ARENA_MAX = "1"
+ROCKET_WORKERS = "8"
+
+[loader.env.RUST_LOG]
+passthrough = true
+
+[loader.env.all_proxy]
+passthrough = true
+
+[loader.env.i2p_proxy]
+passthrough = true
