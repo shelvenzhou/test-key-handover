@@ -39,7 +39,7 @@ enclave_size = "2G"
 thread_num = 128
 remote_attestation = "epid"
 ra_client_linkable = true
-ra_client_spid = ""
+ra_client_spid = "404CB1AB41B87281142227168D77AD33"
 allowed_files = [ "file:/etc/hosts", "file:/etc/resolv.conf", "file:Rocket.toml", "file:data/storage_files/",]
 isvprodid = 0
 isvsvn = 0
@@ -56,7 +56,7 @@ sha256 = "49bba8cbb4b4765af2745755913ceda1c1e083a60e5d2c548ecb38f201b5311f"
 
 [[sgx.trusted_files]]
 uri = "file:pruntime"
-sha256 = "ab1859dbef890ffa56369ea89c9df2a3d7bf71927cdd69df070663ef6c4d9890"
+sha256 = "4364a6d989ec863b9ff626a202ca31108aa841b9fa3dc07bf35527c4aa6658fa"
 
 [[sgx.trusted_files]]
 uri = "file:cruntime/lib/crt1.o"
