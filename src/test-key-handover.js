@@ -4,8 +4,7 @@ const path = require('path');
 const portfinder = require('portfinder');
 const fs = require('fs');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
-const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
-const { ContractPromise } = require('@polkadot/api-contract');
+const { cryptoWaitReady } = require('@polkadot/util-crypto');
 const Phala = require('@phala/sdk');
 const { typeDefinitions } = require('@polkadot/types/bundle');
 
@@ -24,18 +23,20 @@ const pathRelayer = path.resolve(`./artifacts/${senderVersion}/pherry`);
 const inSgx = true;
 const sgxLoader = "gramine-sgx";
 const pRuntimeBin = "pruntime";
+const pRuntimeHash = "pruntime.hash";
 
 const pRuntimeDir = path.resolve(`./artifacts/${senderVersion}`);
 const pathPRuntime = path.resolve(`${pRuntimeDir}/${pRuntimeBin}`);
+const pathPRuntimeHash = path.resolve(`${pRuntimeDir}/${pRuntimeHash}`);
 
 const receiverPRuntimeDir = path.resolve(`./artifacts/${receiverVersion}`);
 const pathReceiverPRuntime = path.resolve(`${receiverPRuntimeDir}/${pRuntimeBin}`);
+const pathReceiverPRuntimeHash = path.resolve(`${receiverPRuntimeDir}/${pRuntimeHash}`);
 
 describe('A full stack', function () {
     this.timeout(160000);
 
     let cluster;
-    let receiverPRuntime;
     let api, keyring, alice, bob;
     let pruntime;
     const tmpDir = new TempDir();
@@ -117,6 +118,30 @@ describe('A full stack', function () {
             }, 3 * 6000), 'benchmark timeout');
         });
     });
+
+    describe('key handover', () => {
+        it('can register pRuntime hashes', async function () {
+            const pRuntimeHash = fs.readFileSync(pathPRuntimeHash, 'utf8');
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.addPruntime(hex(pRuntimeHash))
+                ),
+                alice,
+            );
+
+            const receiverpRuntimeHash = fs.readFileSync(pathReceiverPRuntimeHash, 'utf8');
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.addPruntime(hex(receiverpRuntimeHash))
+                ),
+                alice,
+            );
+        });
+
+        it('can do handover', async function () {
+            await cluster.launchHandoverPRuntime();
+        });
+    });
 });
 
 class Cluster {
@@ -133,10 +158,7 @@ class Cluster {
             workers.push({});
         }
         this.workers = workers;
-        this.key_handover_cluster = {
-            workers: [{}, {}],
-            relayer: {},
-        };
+        this.receiverWorker = {};
     }
 
     async start() {
@@ -153,14 +175,8 @@ class Cluster {
                 w.processPRuntime.kill('SIGKILL'),
                 w.processRelayer.kill()
             ]).flat(),
+            this.receiverWorker?.processPRuntime.kill('SIGKILL'),
         ]);
-
-        if (this.key_handover_cluster.relayer.processRelayer != undefined) {
-            await Promise.all([
-                this.key_handover_cluster.relayer.processRelayer.kill(),
-                ...this.key_handover_cluster.workers.map(w => w.processPRuntime.kill('SIGKILL')).flat(),
-            ]);
-        }
     }
 
     // Returns false if waiting is timeout; otherwise it restart the specified worker
@@ -214,62 +230,10 @@ class Cluster {
         w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
     }
 
-    async launchKeyHandoverAndWait() {
-        const cluster = this.key_handover_cluster;
-
-        const [...workerPorts] = await Promise.all([
-            ...cluster.workers.map((w, i) => portfinder.getPortPromise({ port: 8200 + i * 10 }))
-        ]);
-        cluster.workers.forEach((w, i) => w.port = workerPorts[i]);
-
-        const server = cluster.workers[0];
-        const client = cluster.workers[1];
-        server.processPRuntime = newPRuntime(server.port, this.tmpPath, `pruntime_key_server`);
-        client.processPRuntime = newPRuntime(client.port, this.tmpPath, `pruntime_key_client`);
-
-        const gasAccountKey = '//Ferdie';
-        const key = '0'.repeat(62) + '10';
-        cluster.relayer.processRelayer = newRelayer(this.wsPort, server.port, this.tmpPath, gasAccountKey, key, `pruntime_key_relayer`, client.port);
-
-        await Promise.all([
-            ...cluster.workers.map(w => waitPRuntimeOutput(w.processPRuntime)),
-        ]);
-        await waitRelayerOutput(cluster.relayer.processRelayer);
-
-        cluster.workers.forEach(w => {
-            w.api = new PRuntimeApi(`http://localhost:${w.port}`);
-        })
-    }
-
-    async restartKeyHandoverClient() {
-        const cluster = this.key_handover_cluster;
-        await checkUntil(async () => {
-            return cluster.relayer.processRelayer.stopped
-        }, 6000);
-
-        const client = cluster.workers[1];
-        const gasAccountKey = '//Ferdie';
-        cluster.relayer.processRelayer = newRelayer(this.wsPort, client.port, this.tmpPath, gasAccountKey, '', `pruntime_key_relayer`);
-
-        await waitRelayerOutput(cluster.relayer.processRelayer);
-    }
-
-    // Returns false if waiting is timeout; otherwise it restarts the pherry and the key handover client
-    async waitKeyHandoverClientExitAndRestart(timeout) {
-        const w = this.cluster.workers[1];
-        const succeed = await checkUntil(async () => {
-            return w.processPRuntime.stopped && w.processRelayer.stopped
-        }, timeout);
-        if (!succeed) {
-            return false;
-        }
-        const client = cluster.workers[1];
-        client.processPRuntime = newPRuntime(client.port, this.tmpPath, `pruntime_key_client`);
-        // connect the pherry to the new pRuntime and inject no key
-        cluster.relayer.processRelayer = newRelayer(this.wsPort, client.port, this.tmpPath, gasAccountKey, '', `pruntime_key_relayer`);
-        await waitPRuntimeOutput(client.processPRuntime);
-        await waitRelayerOutput(cluster.relayer.processRelayer);
-        return true;
+    async launchHandoverPRuntime() {
+        // launch receiver pRuntime to do handover
+        this.receiverWorker.processPRuntime = newPRuntime(18000, this.tmpPath, `pruntime_receiver`, ['--request-handover-from', `http://localhost:${this.workers[0].port}`]);
+        await waitPRuntimeHandover(this.receiverWorker.processPRuntime);
     }
 
     async _launchAndWait() {
@@ -293,6 +257,10 @@ class Cluster {
         })
     }
 
+}
+
+function waitPRuntimeHandover(p) {
+    return p.startAndWaitForOutput(/Handover done/);
 }
 
 function waitPRuntimeOutput(p) {
@@ -322,7 +290,7 @@ function newNode(wsPort, tmpPath, name = 'node') {
     return new Process(cli, { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newPRuntime(teePort, tmpPath, name = 'app') {
+function newPRuntime(teePort, tmpPath, name = 'app', extra_args = []) {
     const workDir = path.resolve(`${tmpPath}/${name}`);
     const sealDir = path.resolve(`${workDir}/data`);
     if (!fs.existsSync(workDir)) {
@@ -342,6 +310,8 @@ function newPRuntime(teePort, tmpPath, name = 'app') {
         '--cores=0',  // Disable benchmark
         '--port', teePort.toString(),
     ];
+    args.push(...extra_args);
+
     let bin = pRuntimeBin;
     if (inSgx) {
         bin = sgxLoader;
@@ -389,12 +359,37 @@ function hex(b) {
     }
 }
 
-async function createContractApi(api, pruntimeURL, contractId, metadata) {
-    const newApi = await api.clone().isReady;
-    const phala = await Phala.create({ api: newApi, baseURL: pruntimeURL, contractId, autoDeposit: true });
-    return new ContractPromise(
-        phala.api,
-        metadata,
-        contractId,
-    );
+async function assertSubmission(txBuilder, signer, shouldSucceed = true) {
+    return await new Promise(async (resolve, _reject) => {
+        const unsub = await txBuilder.signAndSend(signer, { nonce: -1 }, (result) => {
+            if (result.status.isInBlock) {
+                let error;
+                for (const e of result.events) {
+                    const { event: { data, method, section } } = e;
+                    if (section === 'system' && method === 'ExtrinsicFailed') {
+                        if (shouldSucceed) {
+                            error = data[0];
+                        } else {
+                            unsub();
+                            resolve(error);
+                        }
+                    }
+                }
+                if (error) {
+                    assert.fail(`Extrinsic failed with error: ${error}`);
+                }
+                unsub();
+                resolve({
+                    hash: result.status.asInBlock,
+                    events: result.events,
+                });
+            } else if (result.status.isInvalid) {
+                assert.fail('Invalid transaction');
+                unsub();
+                resolve();
+            }
+        });
+    });
 }
+assert.txAccepted = assertSubmission;
+assert.txFailed = (txBuilder, signer) => assertSubmission(txBuilder, signer, false);
