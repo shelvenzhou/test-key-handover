@@ -80,6 +80,35 @@ describe('A full stack', function () {
 
     let workerKey;
     describe('pRuntime', () => {
+        it('can register pRuntime hashes', async function () {
+            const pRuntimeHash = fs.readFileSync(pathPRuntimeHash, 'utf8').trim();
+            console.log(`Sender pRuntime hash: ${pRuntimeHash}`);
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.addPruntime(hex(pRuntimeHash))
+                ),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const time = await api.query.phalaRegistry.pRuntimeAddedAt(hex(pRuntimeHash));
+                console.log(`${time.unwrap()}`)
+                return time.isSome;
+            }, 6000), 'pRuntime hash not registered');
+
+            const receiverPRuntimeHash = fs.readFileSync(pathReceiverPRuntimeHash, 'utf8').trim();
+            console.log(`Receiver pRuntime hash: ${receiverPRuntimeHash}`);
+            await assert.txAccepted(
+                api.tx.sudo.sudo(
+                    api.tx.phalaRegistry.addPruntime(hex(receiverPRuntimeHash))
+                ),
+                alice,
+            );
+            assert.isTrue(await checkUntil(async () => {
+                const time = await api.query.phalaRegistry.pRuntimeAddedAt(hex(receiverPRuntimeHash));
+                return time.isSome;
+            }, 6000), 'receiver pRuntime hash not registered');
+        });
+
         it('is initialized', async function () {
             let info;
             assert.isTrue(await checkUntil(async () => {
@@ -120,34 +149,6 @@ describe('A full stack', function () {
     });
 
     describe('key handover', () => {
-        it('can register pRuntime hashes', async function () {
-            const pRuntimeHash = fs.readFileSync(pathPRuntimeHash, 'utf8');
-            console.log(`Sender pRuntime hash: ${pRuntimeHash}`);
-            await assert.txAccepted(
-                api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.addPruntime(hex(pRuntimeHash))
-                ),
-                alice,
-            );
-            assert.isTrue(await checkUntil(async () => {
-                const time = await api.query.phalaRegistry.pRuntimeAddedAt(hex(pRuntimeHash));
-                return time.isSome;
-            }, 6000), 'pRuntime hash not registered');
-
-            const receiverPRuntimeHash = fs.readFileSync(pathReceiverPRuntimeHash, 'utf8');
-            console.log(`Receiver pRuntime hash: ${receiverPRuntimeHash}`);
-            await assert.txAccepted(
-                api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.addPruntime(hex(receiverPRuntimeHash))
-                ),
-                alice,
-            );
-            assert.isTrue(await checkUntil(async () => {
-                const time = await api.query.phalaRegistry.pRuntimeAddedAt(hex(receiverPRuntimeHash));
-                return time.isSome;
-            }, 6000), 'receiver pRuntime hash not registered');
-        });
-
         it('can do handover', async function () {
             await cluster.launchHandoverPRuntime();
         });
@@ -272,7 +273,6 @@ class Cluster {
 function waitPRuntimeHandover(p) {
     return p.startAndWaitForOutput(/Handover done/);
 }
-
 function waitPRuntimeOutput(p) {
     return p.startAndWaitForOutput(/Rocket has launched from/);
 }
