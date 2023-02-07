@@ -46,7 +46,7 @@ describe('A full stack', function () {
         // Check binary files
         [pathNode, pathRelayer, pathPRuntime, pathReceiverPRuntime].map(fs.accessSync);
         // Bring up a cluster
-        cluster = new Cluster(1, pathNode, pathRelayer, pathPRuntime, tmpPath);
+        cluster = new Cluster(1, pathNode, pathRelayer, pathPRuntime, pathReceiverPRuntime, tmpPath);
         await cluster.start();
         // APIs
         api = await cluster.api;
@@ -122,20 +122,30 @@ describe('A full stack', function () {
     describe('key handover', () => {
         it('can register pRuntime hashes', async function () {
             const pRuntimeHash = fs.readFileSync(pathPRuntimeHash, 'utf8');
+            console.log(`Sender pRuntime hash: ${pRuntimeHash}`);
             await assert.txAccepted(
                 api.tx.sudo.sudo(
                     api.tx.phalaRegistry.addPruntime(hex(pRuntimeHash))
                 ),
                 alice,
             );
+            assert.isTrue(await checkUntil(async () => {
+                const time = await api.query.phalaRegistry.pRuntimeAddedAt(hex(pRuntimeHash));
+                return time.isSome;
+            }, 6000), 'pRuntime hash not registered');
 
-            const receiverpRuntimeHash = fs.readFileSync(pathReceiverPRuntimeHash, 'utf8');
+            const receiverPRuntimeHash = fs.readFileSync(pathReceiverPRuntimeHash, 'utf8');
+            console.log(`Receiver pRuntime hash: ${receiverPRuntimeHash}`);
             await assert.txAccepted(
                 api.tx.sudo.sudo(
-                    api.tx.phalaRegistry.addPruntime(hex(receiverpRuntimeHash))
+                    api.tx.phalaRegistry.addPruntime(hex(receiverPRuntimeHash))
                 ),
                 alice,
             );
+            assert.isTrue(await checkUntil(async () => {
+                const time = await api.query.phalaRegistry.pRuntimeAddedAt(hex(receiverPRuntimeHash));
+                return time.isSome;
+            }, 6000), 'receiver pRuntime hash not registered');
         });
 
         it('can do handover', async function () {
@@ -145,11 +155,12 @@ describe('A full stack', function () {
 });
 
 class Cluster {
-    constructor(numWorkers, pathNode, pathRelayer, pathPRuntime, tmpPath) {
+    constructor(numWorkers, pathNode, pathRelayer, pathPRuntime, pathReceiverPRuntime, tmpPath) {
         this.numWorkers = numWorkers;
         this.pathNode = pathNode;
         this.pathRelayer = pathRelayer;
         this.pathPRuntime = pathPRuntime;
+        this.pathReceiverPRuntime = pathReceiverPRuntime;
         this.tmpPath = tmpPath;
         [pathNode, pathRelayer, pathPRuntime].map(fs.accessSync);
         // Prepare empty workers
@@ -225,14 +236,13 @@ class Cluster {
         ];
         const w = this.workers[i];
         const gasAccountKey = AVAILABLE_ACCOUNTS[i];
-        const key = '0'.repeat(63) + (i + 1).toString();
-        w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, gasAccountKey, key, `relayer${i}`);
-        w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
+        w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, gasAccountKey, '', `relayer${i}`);
+        w.processPRuntime = newPRuntime(pRuntimeDir, w.port, this.tmpPath, `pruntime${i}`);
     }
 
     async launchHandoverPRuntime() {
         // launch receiver pRuntime to do handover
-        this.receiverWorker.processPRuntime = newPRuntime(18000, this.tmpPath, `pruntime_receiver`, ['--request-handover-from', `http://localhost:${this.workers[0].port}`]);
+        this.receiverWorker.processPRuntime = newPRuntime(receiverPRuntimeDir, 18000, this.tmpPath, `pruntime_receiver`, ['--request-handover-from', `http://localhost:${this.workers[0].port}`]);
         await waitPRuntimeHandover(this.receiverWorker.processPRuntime);
     }
 
@@ -290,7 +300,7 @@ function newNode(wsPort, tmpPath, name = 'node') {
     return new Process(cli, { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newPRuntime(teePort, tmpPath, name = 'app', extra_args = []) {
+function newPRuntime(pRuntimeDir, teePort, tmpPath, name = 'app', extra_args = []) {
     const workDir = path.resolve(`${tmpPath}/${name}`);
     const sealDir = path.resolve(`${workDir}/data`);
     if (!fs.existsSync(workDir)) {
@@ -329,21 +339,18 @@ function newPRuntime(teePort, tmpPath, name = 'app', extra_args = []) {
     ], { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key = '', name = 'relayer', keyClientPort = '') {
+function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key = '', name = 'relayer') {
     const args = [
         '--no-wait',
         `--mnemonic=${gasAccountKey}`,
         `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
         `--pruntime-endpoint=http://localhost:${teePort}`,
         '--dev-wait-block-ms=1000',
-        '--attestation-provider', 'none',
+        '--attestation-provider', 'ias',
     ];
 
     if (key) {
         args.push(`--inject-key=${key}`);
-    }
-    if (keyClientPort) {
-        args.push(`--next-pruntime-endpoint=http://localhost:${keyClientPort}`);
     }
 
     return new Process([

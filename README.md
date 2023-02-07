@@ -7,7 +7,8 @@
 
 ## Handover Requirements
 
-- The receiver pRuntime is registered on-chain
+- The receiver pRuntime version is registered on-chain
+  - And it's registered after the sender pRuntime version registration
 - The sender pRuntime is synced
   - Will check the time gap between lastest block timestamp and RA report timestamp
 - Both receiver and sender pRuntime will do a Remote Attestation
